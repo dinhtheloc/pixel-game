@@ -1,0 +1,65 @@
+dev:
+  deployments:
+    - name: default
+      replicaCount: "1"
+      ingress:
+        enabled: true
+        autoTls: true
+        websobket: false
+        hosts:
+          - host: mango-portal
+            paths:
+              - path: /
+                port: "80"
+      readinessProbe:
+        failureThreshold: 2
+        initialDelaySeconds: 10
+        periodSeconds: 2
+        successThreshold: 3
+        timeoutSeconds: 2
+        tcpSocket:
+          port: 80
+prod:
+  deployments:
+    - name: default
+      replicaCount: "2"
+      resources:
+        requests:
+          cpu: 200m
+          memory: 300Mi
+      autoscaling:
+        enabled: true
+        minReplicas: 2
+        maxReplicas: 3
+        metrics:
+          - type: Resource
+            resource:
+              name: cpu
+              target:
+                type: Utilization
+                averageUtilization: 90
+      ingress:
+        enabled: true
+        autoTls: true
+        websobket: false
+        hosts:
+        - host: mango-portal
+          paths:
+          - path: /
+            port: "80"
+      readinessProbe:
+        failureThreshold: 2
+        initialDelaySeconds: 10
+        periodSeconds: 2
+        successThreshold: 3
+        timeoutSeconds: 2
+        tcpSocket:
+          port: 80
+      nodeSelector:
+        dedicated: prod
+        spot: "fase"
+      tolerations:
+        - effect: NoSchedule
+          key: dedicated
+          operator: Equal
+          value: prod

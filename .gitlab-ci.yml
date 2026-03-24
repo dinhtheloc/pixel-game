@@ -1,0 +1,8 @@
+variables:
+  VALUEFILE: "values.yml"
+  EXTRA_BUILD_PARAMS: ""
+
+include:
+  - project: devops/cicd
+    file: v2/yeah1games-cicd.yml
+    ref: main

@@ -1,0 +1,108 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: "Pixel";
+  src: url("data:font/woff2;base64,") format("woff2");
+}
+
+:root {
+  --retro-bg: #8b956d;
+  --retro-bg-light: #9ca882;
+  --retro-bg-dark: #6b7353;
+  --retro-fg: #2d3328;
+  --retro-fg-light: #4a5240;
+  --retro-border-light: #a3b089;
+  --retro-border-dark: #5e6449;
+  --retro-screen: #8b956d;
+  --retro-screen-dark: #7a8560;
+  --retro-pixel: #2d3328;
+  --retro-accent: #4a5e3a;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  touch-action: none;
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: auto;
+  background-color: var(--retro-bg);
+  color: var(--retro-fg);
+  font-family: "Courier New", "Courier", monospace;
+  position: fixed;
+  inset: 0;
+}
+
+.retro-inset {
+  border: 2px solid var(--retro-border-dark);
+  border-top-color: var(--retro-border-dark);
+  border-left-color: var(--retro-border-dark);
+  border-bottom-color: var(--retro-border-light);
+  border-right-color: var(--retro-border-light);
+  border-radius: 8px;
+}
+
+.retro-outset {
+  border: 2px solid var(--retro-border-light);
+  border-top-color: var(--retro-border-light);
+  border-left-color: var(--retro-border-light);
+  border-bottom-color: var(--retro-border-dark);
+  border-right-color: var(--retro-border-dark);
+  border-radius: 8px;
+}
+
+.retro-btn {
+  background-color: var(--retro-bg);
+  border: 2px solid var(--retro-border-light);
+  border-top-color: var(--retro-border-light);
+  border-left-color: var(--retro-border-light);
+  border-bottom-color: var(--retro-border-dark);
+  border-right-color: var(--retro-border-dark);
+  border-radius: 6px;
+  color: var(--retro-fg);
+  font-family: "Courier New", "Courier", monospace;
+  font-weight: bold;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 4px 8px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.retro-btn:active {
+  border-top-color: var(--retro-border-dark);
+  border-left-color: var(--retro-border-dark);
+  border-bottom-color: var(--retro-border-light);
+  border-right-color: var(--retro-border-light);
+}
+
+.retro-btn.active {
+  background-color: var(--retro-bg-dark);
+  border-top-color: var(--retro-border-dark);
+  border-left-color: var(--retro-border-dark);
+  border-bottom-color: var(--retro-border-light);
+  border-right-color: var(--retro-border-light);
+}
+
+.retro-btn:disabled {
+  opacity: 0.4;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
