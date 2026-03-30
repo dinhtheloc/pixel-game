@@ -5,6 +5,7 @@ interface Preset {
 
 const PRESETS: Preset[] = [
   { name: "Test", file: "/test.piskel" },
+  { name: "Demo", file: "/demo.piskel" },
 ]
 
 interface PresetPickerProps {

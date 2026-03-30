@@ -8,6 +8,12 @@ export interface Pixel {
 
 export type PixelMap = Map<string, string>
 
+export interface PendingStamp {
+  pixels: PixelMap
+  width: number
+  height: number
+}
+
 interface HistoryEntry {
   key: string
   prevColor: string | null
@@ -87,6 +93,8 @@ export function usePixelCanvas() {
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [tool, setTool] = useState<"draw" | "erase">("draw")
+  const [pendingStamp, setPendingStamp] = useState<PendingStamp | null>(null)
+  const [stampPosition, setStampPosition] = useState({ x: 0, y: 0 })
 
   const undoStack = useRef<HistoryEntry[]>([])
   const redoStack = useRef<HistoryEntry[]>([])
@@ -224,6 +232,74 @@ export function usePixelCanvas() {
     setHistoryVersion((v) => v + 1)
   }, [pixels])
 
+  const stampPixelCost = useMemo(() => {
+    if (!pendingStamp) return 0
+    let cost = 0
+    pendingStamp.pixels.forEach((_color, key) => {
+      const [rx, ry] = key.split(",").map(Number)
+      const ax = rx + stampPosition.x
+      const ay = ry + stampPosition.y
+      if (ax >= 0 && ax < GRID_SIZE && ay >= 0 && ay < GRID_SIZE) {
+        if (!pixels.has(pixelKey(ax, ay))) cost++
+      }
+    })
+    return cost
+  }, [pendingStamp, stampPosition, pixels])
+
+  const loadAsStamp = useCallback(async (url: string) => {
+    const response = await fetch(url)
+    const piskelJson: PiskelFile = await response.json()
+    const layer: PiskelLayer = JSON.parse(piskelJson.piskel.layers[0])
+    const chunk = layer.chunks[0]
+    if (!chunk) return
+
+    const loadedPixels = await loadImagePixels(chunk.base64PNG)
+    const w = piskelJson.piskel.width
+    const h = piskelJson.piskel.height
+
+    setPendingStamp({ pixels: loadedPixels, width: w, height: h })
+    setStampPosition({
+      x: Math.floor((GRID_SIZE - w) / 2),
+      y: Math.floor((GRID_SIZE - h) / 2),
+    })
+  }, [])
+
+  const moveStamp = useCallback((x: number, y: number) => {
+    setStampPosition({ x, y })
+  }, [])
+
+  const commitStamp = useCallback(() => {
+    if (!pendingStamp) return
+    const entries: HistoryEntry[] = []
+
+    setPixels((prev) => {
+      const next = new Map(prev)
+      pendingStamp.pixels.forEach((color, key) => {
+        const [rx, ry] = key.split(",").map(Number)
+        const ax = rx + stampPosition.x
+        const ay = ry + stampPosition.y
+        if (ax < 0 || ax >= GRID_SIZE || ay < 0 || ay >= GRID_SIZE) return
+
+        const absKey = pixelKey(ax, ay)
+        if (!next.has(absKey) && next.size >= MAX_PIXELS) return
+
+        const prevColor = next.get(absKey) ?? null
+        next.set(absKey, color)
+        entries.push({ key: absKey, prevColor, newColor: color })
+      })
+      undoStack.current.push(...entries)
+      redoStack.current = []
+      return next
+    })
+
+    setPendingStamp(null)
+    setHistoryVersion((v) => v + 1)
+  }, [pendingStamp, stampPosition])
+
+  const cancelStamp = useCallback(() => {
+    setPendingStamp(null)
+  }, [])
+
   const loadFromPiskel = useCallback(async (url: string) => {
     const response = await fetch(url)
     const piskelJson: PiskelFile = await response.json()
@@ -265,5 +341,12 @@ export function usePixelCanvas() {
     loadFromPiskel,
     panBy,
     historyVersion,
+    pendingStamp,
+    stampPosition,
+    stampPixelCost,
+    loadAsStamp,
+    moveStamp,
+    commitStamp,
+    cancelStamp,
   }
 }

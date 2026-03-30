@@ -12,7 +12,7 @@ export default function App() {
   const [presetOpen, setPresetOpen] = useState(false)
 
   const handleLoadPreset = async (url: string) => {
-    await canvas.loadFromPiskel(url)
+    await canvas.loadAsStamp(url)
   }
 
   return (
@@ -36,14 +36,45 @@ export default function App() {
           zoom={canvas.zoom}
           pan={canvas.pan}
           onDrawPixel={canvas.drawPixel}
+          onPanBy={canvas.panBy}
+          pendingStamp={canvas.pendingStamp}
+          stampPosition={canvas.stampPosition}
+          onMoveStamp={canvas.moveStamp}
         />
         <ViewControls
           zoom={canvas.zoom}
           onZoomIn={canvas.zoomIn}
           onZoomOut={canvas.zoomOut}
           onResetView={canvas.resetView}
-          onPanBy={canvas.panBy}
         />
+
+        {/* Stamp placement overlay */}
+        {canvas.pendingStamp && (
+          <div className="absolute bottom-2 left-2 right-2 z-20 flex gap-2 items-center">
+            <div
+              className="retro-btn flex-1 text-center text-[10px] tracking-wider cursor-default py-2"
+              style={{ color: "var(--retro-fg)" }}
+            >
+              <div>{canvas.pendingStamp!.pixels.size} px total</div>
+              <div>+{canvas.stampPixelCost} new</div>
+            </div>
+            <button
+              onClick={canvas.commitStamp}
+              disabled={
+                canvas.pixelCount + canvas.stampPixelCost > canvas.maxPixels
+              }
+              className="retro-btn flex-1 py-2 text-[10px] tracking-wider"
+            >
+              PLACE
+            </button>
+            <button
+              onClick={canvas.cancelStamp}
+              className="retro-btn flex-1 py-2 text-[10px] tracking-wider"
+            >
+              CANCEL
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Name label */}

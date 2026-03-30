@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import type { PixelMap } from "@/hooks/usePixelCanvas"
+import type { PendingStamp, PixelMap } from "@/hooks/usePixelCanvas"
 
 interface PixelCanvasProps {
   pixels: PixelMap
@@ -7,6 +7,10 @@ interface PixelCanvasProps {
   zoom: number
   pan: { x: number; y: number }
   onDrawPixel: (x: number, y: number) => void
+  onPanBy: (dx: number, dy: number) => void
+  pendingStamp?: PendingStamp | null
+  stampPosition?: { x: number; y: number }
+  onMoveStamp?: (x: number, y: number) => void
 }
 
 export default function PixelCanvas({
@@ -15,11 +19,20 @@ export default function PixelCanvas({
   zoom,
   pan,
   onDrawPixel,
+  onPanBy,
+  pendingStamp,
+  stampPosition,
+  onMoveStamp,
 }: PixelCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const isDrawing = useRef(false)
   const lastDrawnCell = useRef<string | null>(null)
+  const activePointers = useRef<Map<number, { x: number; y: number }>>(new Map())
+  const isPanning = useRef(false)
+  const lastPanMidpoint = useRef<{ x: number; y: number } | null>(null)
+  const pendingCell = useRef<{ x: number; y: number } | null>(null)
+  const hasMoved = useRef(false)
 
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 })
 
@@ -89,10 +102,28 @@ export default function PixelCanvas({
       )
     })
 
+    if (pendingStamp && stampPosition) {
+      ctx.globalAlpha = 0.55
+      pendingStamp.pixels.forEach((color, key) => {
+        const [rx, ry] = key.split(",").map(Number)
+        const ax = rx + stampPosition.x
+        const ay = ry + stampPosition.y
+        if (ax < 0 || ax >= gridSize || ay < 0 || ay >= gridSize) return
+        ctx.fillStyle = color
+        ctx.fillRect(
+          offsetX + ax * cellSize + 0.5,
+          offsetY + ay * cellSize + 0.5,
+          cellSize - 1,
+          cellSize - 1,
+        )
+      })
+      ctx.globalAlpha = 1
+    }
+
     ctx.strokeStyle = "#6b7353"
     ctx.lineWidth = 2
     ctx.strokeRect(offsetX, offsetY, cellSize * gridSize, cellSize * gridSize)
-  }, [canvasSize, gridSize, zoom, pan, pixels])
+  }, [canvasSize, gridSize, zoom, pan, pixels, pendingStamp, stampPosition])
 
   useEffect(() => {
     draw()
@@ -125,34 +156,117 @@ export default function PixelCanvas({
     const canvas = canvasRef.current
     if (!canvas) return
 
+    const getMidpoint = () => {
+      const pts = Array.from(activePointers.current.values())
+      return {
+        x: (pts[0].x + pts[1].x) / 2,
+        y: (pts[0].y + pts[1].y) / 2,
+      }
+    }
+
     const onPointerDown = (e: PointerEvent) => {
       e.preventDefault()
-      const cell = getCellFromPoint(e.clientX, e.clientY)
-      if (cell) {
-        isDrawing.current = true
-        lastDrawnCell.current = `${cell.x},${cell.y}`
-        onDrawPixel(cell.x, cell.y)
+      activePointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+
+      if (activePointers.current.size >= 2) {
+        isPanning.current = true
+        isDrawing.current = false
+        lastDrawnCell.current = null
+        pendingCell.current = null
+        hasMoved.current = false
+        lastPanMidpoint.current = getMidpoint()
+      } else {
+        isPanning.current = false
+        isDrawing.current = false
+        hasMoved.current = false
+        pendingCell.current = getCellFromPoint(e.clientX, e.clientY)
+
+        // In stamp mode: move stamp on touch down immediately
+        if (pendingStamp && onMoveStamp) {
+          const cell = getCellFromPoint(e.clientX, e.clientY)
+          if (cell) {
+            onMoveStamp(
+              cell.x - Math.floor(pendingStamp.width / 2),
+              cell.y - Math.floor(pendingStamp.height / 2),
+            )
+          }
+        }
       }
     }
 
     const onPointerMove = (e: PointerEvent) => {
       e.preventDefault()
-      if (!isDrawing.current) return
+      activePointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
 
-      const cell = getCellFromPoint(e.clientX, e.clientY)
-      if (cell) {
-        const cellKey = `${cell.x},${cell.y}`
-        if (cellKey !== lastDrawnCell.current) {
-          lastDrawnCell.current = cellKey
-          onDrawPixel(cell.x, cell.y)
+      if (isPanning.current && activePointers.current.size >= 2) {
+        const mid = getMidpoint()
+        if (lastPanMidpoint.current) {
+          onPanBy(mid.x - lastPanMidpoint.current.x, mid.y - lastPanMidpoint.current.y)
+        }
+        lastPanMidpoint.current = mid
+      } else if (!isPanning.current && activePointers.current.size === 1) {
+        // In stamp mode: drag moves stamp position
+        if (pendingStamp && onMoveStamp) {
+          hasMoved.current = true
+          const cell = getCellFromPoint(e.clientX, e.clientY)
+          if (cell) {
+            onMoveStamp(
+              cell.x - Math.floor(pendingStamp.width / 2),
+              cell.y - Math.floor(pendingStamp.height / 2),
+            )
+          }
+          return
+        }
+
+        // Commit draw from initial touch if not started yet
+        if (!isDrawing.current && pendingCell.current) {
+          isDrawing.current = true
+          lastDrawnCell.current = `${pendingCell.current.x},${pendingCell.current.y}`
+          onDrawPixel(pendingCell.current.x, pendingCell.current.y)
+          pendingCell.current = null
+        }
+        hasMoved.current = true
+        const cell = getCellFromPoint(e.clientX, e.clientY)
+        if (cell && isDrawing.current) {
+          const cellKey = `${cell.x},${cell.y}`
+          if (cellKey !== lastDrawnCell.current) {
+            lastDrawnCell.current = cellKey
+            onDrawPixel(cell.x, cell.y)
+          }
         }
       }
     }
 
     const onPointerUp = (e: PointerEvent) => {
       e.preventDefault()
-      isDrawing.current = false
-      lastDrawnCell.current = null
+      activePointers.current.delete(e.pointerId)
+
+      // In stamp mode: no draw on tap, stamp is positioned on pointerdown/move
+      if (pendingStamp) {
+        pendingCell.current = null
+        hasMoved.current = false
+        if (activePointers.current.size === 0) {
+          isDrawing.current = false
+          lastDrawnCell.current = null
+        }
+        return
+      }
+
+      // Tap (no movement): draw the pending cell now
+      if (!hasMoved.current && !isPanning.current && pendingCell.current) {
+        onDrawPixel(pendingCell.current.x, pendingCell.current.y)
+      }
+      pendingCell.current = null
+      hasMoved.current = false
+
+      if (activePointers.current.size < 2) {
+        isPanning.current = false
+        lastPanMidpoint.current = null
+      }
+      if (activePointers.current.size === 0) {
+        isDrawing.current = false
+        lastDrawnCell.current = null
+      }
     }
 
     const onTouchStart = (e: TouchEvent) => {
@@ -186,7 +300,7 @@ export default function PixelCanvas({
       canvas.removeEventListener("touchmove", onTouchMove)
       canvas.removeEventListener("contextmenu", onContextMenu)
     }
-  }, [getCellFromPoint, onDrawPixel])
+  }, [getCellFromPoint, onDrawPixel, onPanBy, pendingStamp, onMoveStamp])
 
   return (
     <div ref={containerRef} className="flex-1 w-full overflow-hidden relative">
