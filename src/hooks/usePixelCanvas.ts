@@ -40,7 +40,7 @@ interface PiskelLayer {
   }[]
 }
 
-const GRID_SIZE = 150
+const GRID_SIZE = 100
 const MAX_PIXELS = 22500
 
 function pixelKey(x: number, y: number): string {
